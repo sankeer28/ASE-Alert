@@ -8,6 +8,11 @@ The application fetches ASE location data from the City of Toronto's Open Data p
 
 As of December 2022, Toronto's Automated Speed Enforcement (ASE) program had collected $34 million in fines from speed cameras.
 
+![image](https://github.com/user-attachments/assets/8183030b-2671-4167-9983-ff228ce3f8ff)
+
+#### Yellow 🟨 - Cameras coming soon
+#### Red 🟥 - Active Cameras
+#### When in range (200 m radius from your locationa nd 200m radius rom camera radius overlaps) page will flash red 🟥.
 ## Data Source
 
 The ASE location data is obtained from the City of Toronto's Open Data portal. The dataset can be found at [Automated Speed Enforcement Locations](https://open.toronto.ca/dataset/automated-speed-enforcement-locations/).
