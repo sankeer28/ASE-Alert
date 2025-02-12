@@ -1,0 +1,51 @@
+body {
+    background-color: lightblue; /* Set initial background color to light blue */
+    font-family: 'Lato', sans-serif; /* Use Lato font */
+}
+#map {
+    height: 600px;
+    width: 100%;
+    border-radius: 15px; /* Add rounded corners to the map */
+    overflow: hidden; /* Ensure the map content stays within the rounded corners */
+}
+.user-location {
+    background-color: blue;
+    border-radius: 50%;
+    width: 10px;
+    height: 10px;
+    display: block;
+    position: absolute;
+    top: -5px;
+    left: -5px;
+}
+.user-direction {
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 10px solid blue;
+    position: absolute;
+    top: -15px;
+    left: -5px;
+}
+.leaflet-control-refocus {
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+.leaflet-control-refocus i {
+    color: black;
+    margin-right: 5px;
+}
+@keyframes pageFlash {
+    0% { background-color: lightblue; }
+    50% { background-color: red; }
+    100% { background-color: lightblue; }
+}
+.warning-active {
+    animation: pageFlash 1s infinite;
+}
