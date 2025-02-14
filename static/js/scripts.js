@@ -1,7 +1,14 @@
 var aseLocations = [];
 var soundEnabled = false;
+var userStreet = null;
+var cameraStreets = {};
+var testMode = false;
 
 function getLocation() {
+    if (testMode) {
+        console.log("Test mode active - click map to move position");
+        return;
+    }
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(
             showPosition,
@@ -149,9 +156,22 @@ function showError(error) {
     }
 }
 
-function checkForCameraProximity(userLat, userLon, camera) {
-    // Calculate distance between user and camera
-    const R = 6371000; // Earth's radius in meters
+// Add this new function to get street name from coordinates
+async function getStreetName(lat, lon) {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+        const data = await response.json();
+        return data.address.road || null;
+    } catch (error) {
+        console.error('Error getting street name:', error);
+        return null;
+    }
+}
+
+// Modify the checkForCameraProximity function
+async function checkForCameraProximity(userLat, userLon, camera) {
+    // First check distance
+    const R = 6371000;
     const φ1 = userLat * Math.PI/180;
     const φ2 = camera.latitude * Math.PI/180;
     const Δφ = (camera.latitude-userLat) * Math.PI/180;
@@ -163,7 +183,55 @@ function checkForCameraProximity(userLat, userLon, camera) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distance = R * c;
 
-    return distance <= 400; // 200m + 200m = circles are touching
+    // If not within distance, return false immediately
+    if (distance > 400) return false;
+
+    // If within distance, check street names
+    // Get user's current street name if we don't have it
+    if (!userStreet) {
+        userStreet = await getStreetName(userLat, userLon);
+    }
+
+    // Get camera's street name if we don't have it cached
+    if (!cameraStreets[camera.id]) {
+        cameraStreets[camera.id] = await getStreetName(camera.latitude, camera.longitude);
+    }
+
+    // Compare street names
+    return userStreet && cameraStreets[camera.id] && 
+           userStreet.toLowerCase() === cameraStreets[camera.id].toLowerCase();
+}
+
+// Modify the checkProximity function to handle async
+async function checkProximity() {
+    console.log("Checking proximity...");
+    let inRange = false;
+
+    // Update user's street name periodically
+    userStreet = await getStreetName(userLat, userLon);
+
+    for (const location of aseLocations) {
+        if (location.status === "Active") {
+            if (await checkForCameraProximity(userLat, userLon, location)) {
+                inRange = true;
+                break;
+            }
+        }
+    }
+
+    if (inRange) {
+        console.log("In range of a camera on the same street");
+        if (!activeWarning) {
+            console.log("Slow down");
+            showWarning();
+        }
+    } else {
+        console.log("Not in range or not on same street");
+        if (activeWarning) {
+            console.log("Safe");
+            hideWarning();
+        }
+    }
 }
 
 function initializeSound() {
@@ -272,42 +340,49 @@ function addAseMarkers() {
                 <b>Status:</b> ${location.status}
             `;
 
+            // Add circle for range
             var circle = L.circle([location.latitude, location.longitude], {
                 color: color,
                 fillColor: color === 'red' ? '#f03' : '#ff0',
-                fillOpacity: 0.5,
+                fillOpacity: 0.2,
                 radius: 200
-            }).addTo(map)
-            .bindPopup(message);
+            }).addTo(map);
+
+            // Add camera marker
+            var cameraIcon = L.divIcon({
+                className: 'camera-icon',
+                html: `<div style="
+                    width: 10px;
+                    height: 10px;
+                    background-color: ${color};
+                    border: 2px solid white;
+                    border-radius: 50%;
+                    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                "></div>`,
+                iconSize: [10, 10]
+            });
+
+            var marker = L.marker([location.latitude, location.longitude], {
+                icon: cameraIcon
+            }).addTo(map);
+
+            // Add popup to both circle and marker
+            circle.bindPopup(message);
+            marker.bindPopup(message);
+            
             aseMarkers.push(circle);
+            aseMarkers.push(marker);
         }
     });
 }
 
 // Function to check if user is in range of any camera
-function checkProximity() {
-    console.log("Checking proximity...");
-    let inRange = false;
-    aseLocations.forEach(location => {
-        if (location.status === "Active" && checkForCameraProximity(userLat, userLon, location)) {
-            inRange = true;
-        }
+// Modify the interval to use async function
+setInterval(() => {
+    checkProximity().catch(error => {
+        console.error("Error in proximity check:", error);
     });
-
-    if (inRange) {
-        console.log("In range of a camera");
-        if (!activeWarning) {
-            console.log("Slow down");
-            showWarning();
-        }
-    } else {
-        console.log("Not in range of any camera");
-        if (activeWarning) {
-            console.log("Safe");
-            hideWarning();
-        }
-    }
-}
+}, 1000);
 
 // Fetch ASE locations once at the start
 fetch('/check_location', {
@@ -324,11 +399,47 @@ fetch('/check_location', {
     addAseMarkers(); // Add ASE markers to the map
 });
 
-// Check proximity every second
-setInterval(checkProximity, 1000);
+// Add this new function
+function toggleTestMode() {
+    testMode = !testMode;
+    document.getElementById('testModeBtn').classList.toggle('btn-warning');
+    document.getElementById('testModeBtn').classList.toggle('btn-secondary');
+    document.getElementById('testModeStatus').textContent = testMode ? 'ON' : 'OFF';
+}
+
+// Add this new function
+function simulatePosition(e) {
+    if (!testMode) return;
+    
+    const clickLat = e.latlng.lat;
+    const clickLon = e.latlng.lng;
+    
+    // Simulate position update
+    showPosition({
+        coords: {
+            latitude: clickLat,
+            longitude: clickLon,
+            heading: 0,
+            speed: 0
+        }
+    });
+}
+
+// Add this new function to show the test mode button
+function showTestModeButton() {
+    document.getElementById('testModeBtn').style.display = 'block';
+}
 
 // Update the existing automatic location start
 window.onload = function() {
     getLocation();
     initializeSound();
+    
+    // Add map click handler
+    map.on('click', simulatePosition);
+    
+    // Show the test mode button (for example, only in development mode)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        showTestModeButton();
+    }
 };

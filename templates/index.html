@@ -92,6 +92,9 @@
         .github-link img:hover {
             opacity: 1;
         }
+        #testModeBtn {
+            display: none;
+        }
     </style>
 </head>
 <body class="container mt-4">
@@ -100,6 +103,9 @@
     </a>
     <h1 class="text-center mb-4" style="font-weight: 700;">ASE Alert</h1>
     <div id="map" class="mb-4"></div>
+    <button id="testModeBtn" onclick="toggleTestMode()" class="btn btn-secondary btn-sm position-fixed" style="bottom: 20px; right: 20px; z-index: 1000;">
+        Test Mode: <span id="testModeStatus">OFF</span>
+    </button>
     <div class="legend">
         <span><span class="color-dot" style="background: red;"></span>Active Cameras</span>
         <span><span class="color-dot" style="background: yellow;"></span>Planned/Coming Soon Cameras</span>
