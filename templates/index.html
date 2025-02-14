@@ -60,11 +60,50 @@
         .warning-active {
             animation: pageFlash 1s infinite;
         }
+        .legend {
+            font-size: 14px;
+            color: #333;
+            margin-top: -15px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .legend span {
+            margin: 0 10px;
+        }
+        .color-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .github-link {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .github-link img {
+            width: 24px;
+            height: 24px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+        .github-link img:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="container mt-4">
+    <a href="https://github.com/sankeer28/ASE-Alert" target="_blank" class="github-link">
+        <img src="https://github.com/favicon.ico" alt="GitHub">
+    </a>
     <h1 class="text-center mb-4" style="font-weight: 700;">ASE Alert</h1>
     <div id="map" class="mb-4"></div>
+    <div class="legend">
+        <span><span class="color-dot" style="background: red;"></span>Active Cameras</span>
+        <span><span class="color-dot" style="background: yellow;"></span>Planned/Coming Soon Cameras</span>
+    </div>
     <div id="warning-banner" style="display: none;" class="warning-flash alert alert-danger text-center">
         ⚠️ WARNING: Active Speed Camera Ahead! ⚠️
     </div>
