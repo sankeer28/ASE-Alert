@@ -1,4 +1,5 @@
 var aseLocations = [];
+var soundEnabled = false;
 
 function getLocation() {
     if (navigator.geolocation) {
@@ -165,9 +166,38 @@ function checkForCameraProximity(userLat, userLon, camera) {
     return distance <= 400; // 200m + 200m = circles are touching
 }
 
+function initializeSound() {
+    const warningSound = document.getElementById('warningSound');
+    const enableSoundBtn = document.getElementById('enableSound');
+    
+    enableSoundBtn.addEventListener('click', function() {
+        soundEnabled = true;
+        warningSound.muted = false;
+        // Play and immediately pause to initialize audio
+        warningSound.play().then(() => {
+            warningSound.pause();
+            warningSound.currentTime = 0;
+        }).catch(error => {
+            console.log("Error initializing audio:", error);
+        });
+        enableSoundBtn.style.display = 'none';
+    });
+}
+
 function showWarning() {
     activeWarning = true;
     document.body.classList.add('warning-active');
+    document.getElementById('warning-banner').style.display = 'block';
+    
+    // Play warning sound if enabled
+    if (soundEnabled) {
+        const warningSound = document.getElementById('warningSound');
+        warningSound.muted = false;
+        warningSound.play().catch(error => {
+            console.log("Error playing sound:", error);
+        });
+    }
+    
     console.log("Slow down - Warning activated");
     
     // Vibrate if supported
@@ -180,6 +210,12 @@ function hideWarning() {
     activeWarning = false;
     document.body.classList.remove('warning-active');
     document.getElementById('warning-banner').style.display = 'none';
+    
+    // Stop warning sound
+    const warningSound = document.getElementById('warningSound');
+    warningSound.pause();
+    warningSound.currentTime = 0;
+    
     console.log("Safe - Warning deactivated");
 }
 
@@ -294,4 +330,5 @@ setInterval(checkProximity, 1000);
 // Update the existing automatic location start
 window.onload = function() {
     getLocation();
+    initializeSound();
 };
