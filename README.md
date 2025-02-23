@@ -1,4 +1,4 @@
-# ASE-Alert
+# ASE-Alert (work in progress)
 
 This project is a web application that provides notifications for Automated Speed Enforcement (ASE) locations in Toronto. The application uses Leaflet.js to display a map with ASE locations and provides real-time notifications when the user is near an active speed camera.
 
