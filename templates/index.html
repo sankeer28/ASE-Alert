@@ -14,10 +14,11 @@
             font-family: 'Lato', sans-serif; /* Use Lato font */
         }
         #map {
-            height: 600px;
+            height: 450px; /* Reduced from 600px to make more square */
             width: 100%;
             border-radius: 15px; /* Add rounded corners to the map */
             overflow: hidden; /* Ensure the map content stays within the rounded corners */
+            margin-bottom: 10px; /* Reduced margin */
         }
         .user-location {
             background-color: blue;
@@ -63,8 +64,8 @@
         .legend {
             font-size: 14px;
             color: #333;
-            margin-top: -15px;
-            margin-bottom: 15px;
+            margin-top: -5px; /* Reduced from -15px */
+            margin-bottom: 10px; /* Reduced from 15px */
             text-align: center;
         }
         .legend span {
@@ -92,29 +93,61 @@
         .github-link img:hover {
             opacity: 1;
         }
+        #enableSound {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
         #testModeBtn {
-            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: block !important; /* Force display */
+        }
+        #warning-banner {
+            font-size: 1.2em;
+            padding: 12px;
+            margin: 5px 0; /* Reduced margins */
+            line-height: 1.3;
+            position: sticky; /* Make warning banner stick to top */
+            top: 0;
+            z-index: 1000;
+        }
+        .distance-text {
+            font-size: 2.5em; /* Made distance text even larger */
+            font-weight: bold;
+            display: block;
+            margin: 5px 0; /* Reduced margins */
+            color: #721c24;
+        }
+        .location-text {
+            display: block;
+            font-size: 0.9em;
+            margin-top: 5px;
+            color: #721c24;
         }
     </style>
 </head>
-<body class="container mt-4">
+<body class="container mt-3"> <!-- Reduced top margin from mt-4 -->
     <a href="https://github.com/sankeer28/ASE-Alert" target="_blank" class="github-link">
         <img src="https://github.com/favicon.ico" alt="GitHub">
     </a>
-    <h1 class="text-center mb-4" style="font-weight: 700;">ASE Alert</h1>
+    <h1 class="text-center mb-3" style="font-weight: 700;">ASE Alert</h1> <!-- Reduced margin -->
     <div id="map" class="mb-4"></div>
-    <button id="testModeBtn" onclick="toggleTestMode()" class="btn btn-secondary btn-sm position-fixed" style="bottom: 20px; right: 20px; z-index: 1000;">
-        Test Mode: <span id="testModeStatus">OFF</span>
-    </button>
     <div class="legend">
-        <span><span class="color-dot" style="background: red;"></span>Active Cameras</span>
-        <span><span class="color-dot" style="background: yellow;"></span>Planned/Coming Soon Cameras</span>
+        <span><span class="color-dot" style="background: red;"></span>Active</span>
+        <span><span class="color-dot" style="background: yellow;"></span>Coming Soon</span>
     </div>
     <div id="warning-banner" style="display: none;" class="warning-flash alert alert-danger text-center">
         ⚠️ WARNING: Active Speed Camera Ahead! ⚠️
     </div>
-    <button id="enableSound" class="btn btn-sm btn-primary mb-2">Enable Sound Alerts</button>
-    <audio id="warningSound" loop muted>
+    <button id="enableSound" class="btn btn-primary">Enable Sound Alerts</button>
+    <button id="testModeBtn" class="btn btn-secondary">
+        Test Mode: <span id="testModeStatus">OFF</span>
+    </button>
+    <audio id="warningSound" preload="auto">
         <source src="{{ url_for('static', filename='sound.mp3') }}" type="audio/mpeg">
     </audio>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

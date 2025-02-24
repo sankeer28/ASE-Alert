@@ -3,24 +3,65 @@ var soundEnabled = false;
 var userStreet = null;
 var cameraStreets = {};
 var testMode = false;
+var lastKnownStreet = null;
+var lastStreetConfidence = 0;
+var streetConfidence = 0;
+var lastCheckedLocation = { lat: null, lon: null };
+var cameraStreetsCache = {};
+var previousStreets = [];
+var streetChangeBuffer = 3; // Need this many consecutive different readings to change streets
+var sameStreetCount = 0;
 
+// Add these new variables at the top
+var streetConfidenceThreshold = 2; // Number of confirmations needed to change streets
+var streetHistory = [];
+var currentConfirmedStreet = null;
+var temporaryStreetCount = 0;
+
+// Update getLocation function with better error handling
 function getLocation() {
     if (testMode) {
         console.log("Test mode active - click map to move position");
         return;
     }
-    if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-            showPosition,
-            showError,
-            {
-                enableHighAccuracy: true, // Request high accuracy
-                maximumAge: 0, // Do not use cached location
-                timeout: 10000 // Allow up to 10 seconds to get location
-            }
-        );
-    } else {
+
+    if (!navigator.geolocation) {
+        console.error("Geolocation is not supported by this browser.");
         alert("Geolocation is not supported by this browser.");
+        return;
+    }
+
+    const options = {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000 // Increased timeout to 10 seconds
+    };
+
+    try {
+        console.log("Requesting geolocation...");
+        navigator.geolocation.getCurrentPosition(
+            // Success callback
+            (position) => {
+                console.log("Initial position received:", position.coords);
+                showPosition(position);
+                
+                // Start watching position after getting initial location
+                navigator.geolocation.watchPosition(
+                    showPosition,
+                    showError,
+                    options
+                );
+            },
+            // Error callback
+            (error) => {
+                console.error("Error getting initial position:", error);
+                showDetailedError(error);
+            },
+            options
+        );
+    } catch (e) {
+        console.error("Exception in getLocation:", e);
+        alert("Error initializing location services. Please ensure location access is enabled.");
     }
 }
 
@@ -47,27 +88,28 @@ var userDirection;
 var aseMarkers = [];
 var initialViewSet = false;
 var userLat, userLon;
-var streetLayer;
 var activeWarning = false;
 
+// Update showPosition with validation
 function showPosition(position) {
+    if (!position || !position.coords) {
+        console.error("Invalid position data received:", position);
+        return;
+    }
+
     userLat = position.coords.latitude;
     userLon = position.coords.longitude;
+
+    if (!userLat || !userLon) {
+        console.error("Invalid coordinates:", {lat: userLat, lon: userLon});
+        return;
+    }
+
+    console.log("Position update:", {lat: userLat, lon: userLon});
+    
     var userHeading = position.coords.heading;
     var userSpeed = position.coords.speed;
 
-    // Create or update radius circle
-    if (!streetLayer) {
-        streetLayer = L.circle([userLat, userLon], {
-            radius: 200,
-            color: 'lightblue',
-            weight: 1,
-            fillColor: '#add8e6',
-            fillOpacity: 0.1
-        }).addTo(map);
-    }
-
-    // Smooth transition if we have previous coordinates
     if (prevLat && prevLon && userMarker) {
         var latDiff = userLat - prevLat;
         var lonDiff = userLon - prevLon;
@@ -87,9 +129,6 @@ function showPosition(position) {
                 if (userDirection) {
                     userDirection.setLatLng([lat, lon]);
                 }
-                
-                // Update radius circle
-                streetLayer.setLatLng([lat, lon]);
                 
                 if (isFollowingUser) {
                     map.panTo([lat, lon], { animate: true, duration: 0.1 });
@@ -126,9 +165,6 @@ function showPosition(position) {
             }).addTo(map);
         }
 
-        // Update radius circle position
-        streetLayer.setLatLng([userLat, userLon]);
-
         if (isFollowingUser) {
             map.setView([userLat, userLon], map.getZoom());
         }
@@ -156,6 +192,42 @@ function showError(error) {
     }
 }
 
+// Add new function for detailed error handling
+function showDetailedError(error) {
+    let message = "Location Error: ";
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            message += "Please enable location access in your browser settings.";
+            break;
+        case error.POSITION_UNAVAILABLE:
+            message += "Location information is unavailable. Please check your device's location settings.";
+            break;
+        case error.TIMEOUT:
+            message += "Location request timed out. Please check your internet connection.";
+            break;
+        case error.UNKNOWN_ERROR:
+            message += "An unknown error occurred. Please try refreshing the page.";
+            break;
+    }
+    console.error(message, error);
+    alert(message);
+}
+
+// Add this helper function to calculate distance between coordinates
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.sin(dLon/2) * Math.sin(dLon/2) * 
+              Math.cos(lat1Rad) * Math.cos(lat2Rad);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c * 1000; // Convert to meters
+}
+
 // Add this new function to get street name from coordinates
 async function getStreetName(lat, lon) {
     try {
@@ -168,109 +240,292 @@ async function getStreetName(lat, lon) {
     }
 }
 
-// Modify the checkForCameraProximity function
-async function checkForCameraProximity(userLat, userLon, camera) {
-    // First check distance
-    const R = 6371000;
-    const φ1 = userLat * Math.PI/180;
-    const φ2 = camera.latitude * Math.PI/180;
-    const Δφ = (camera.latitude-userLat) * Math.PI/180;
-    const Δλ = (camera.longitude-userLon) * Math.PI/180;
+// Replace normalizeStreetName function with improved version
+function normalizeStreetName(streetName) {
+    if (!streetName) return '';
+    
+    // Convert to lowercase and remove periods
+    let normalized = streetName.toLowerCase().replace(/\./g, '');
+    
+    // Special handling for Lake Shore Boulevard
+    if (normalized.includes('lake shore') || normalized.includes('lakeshore')) {
+        normalized = normalized
+            .replace('lakeshore', 'lake shore')
+            .replace('blvd', 'boulevard')
+            .replace(/ e\.?(\s|$)/, ' east$1')
+            .replace(/ w\.?(\s|$)/, ' west$1');
+            
+        // Remove everything after cardinal directions
+        normalized = normalized.replace(/(east|west).*$/, '$1');
+    }
+    
+    // Handle special cases with common abbreviations
+    const replacements = {
+        'rd': 'road',
+        'st': 'street',
+        'ave': 'avenue',
+        'dr': 'drive',
+        'cres': 'crescent',
+        'blvd': 'boulevard',
+        'ct': 'court',
+        'ln': 'lane',
+        'pl': 'place'
+    };
 
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-
-    // If not within distance, return false immediately
-    if (distance > 400) return false;
-
-    // If within distance, check street names
-    // Get user's current street name if we don't have it
-    if (!userStreet) {
-        userStreet = await getStreetName(userLat, userLon);
+    // Replace abbreviations with full words
+    for (const [abbr, full] of Object.entries(replacements)) {
+        const regex = new RegExp(`\\b${abbr}\\b`, 'g');
+        normalized = normalized.replace(regex, full);
     }
 
-    // Get camera's street name if we don't have it cached
-    if (!cameraStreets[camera.id]) {
-        cameraStreets[camera.id] = await getStreetName(camera.latitude, camera.longitude);
-    }
+    // Clean up the street name - stop at first "near", "east of", etc.
+    normalized = normalized
+        .replace(/\s*\([^)]*\)/g, '') // Remove parentheses content
+        .replace(/\s*(near|between|at|beside|behind|across from|in front of|east of|west of|north of|south of).*$/i, '') // Remove descriptive text
+        .replace(/\s+/g, ' ') // Clean up spaces
+        .trim();
 
-    // Compare street names
-    return userStreet && cameraStreets[camera.id] && 
-           userStreet.toLowerCase() === cameraStreets[camera.id].toLowerCase();
+    console.log(`Street name normalization: "${streetName}" -> "${normalized}"`);
+    return normalized;
 }
 
-// Modify the checkProximity function to handle async
-async function checkProximity() {
-    console.log("Checking proximity...");
-    let inRange = false;
+// Add street name validation function
+function isValidStreetName(streetName) {
+    if (!streetName) return false;
+    
+    // Must be at least 3 characters
+    if (streetName.length < 3) return false;
+    
+    // Common business/place names to reject
+    const invalidNames = /^(bmo|rbc|td|cibc|scotiabank|tim hortons|mcdonalds|walmart|costco|canadian tire|home depot|lowes|ikea|no name|no nearby|unknown|undefined)$/i;
+    if (invalidNames.test(streetName)) {
+        console.log(`Rejected business name: ${streetName}`);
+        return false;
+    }
+    
+    // Must contain at least one word that's typically in street names
+    const streetIndicators = /(road|rd|street|st|avenue|ave|drive|dr|crescent|cres|boulevard|blvd|court|ct|circle|cir|lane|ln|way|trail|path|park|gardens|gate|heights|hills|place|plaza|square|terrace|valley|view|wood)/i;
+    if (!streetIndicators.test(streetName)) {
+        console.log(`Missing street indicator in: ${streetName}`);
+        return false;
+    }
+    
+    return true;
+}
 
-    // Update user's street name periodically
-    userStreet = await getStreetName(userLat, userLon);
-
-    for (const location of aseLocations) {
-        if (location.status === "Active") {
-            if (await checkForCameraProximity(userLat, userLon, location)) {
-                inRange = true;
-                break;
-            }
-        }
+// Add this function to handle street consistency
+function processStreetName(newStreet) {
+    // Add to history
+    streetHistory.push(newStreet);
+    if (streetHistory.length > 10) {
+        streetHistory.shift(); // Keep last 10 readings
     }
 
-    if (inRange) {
-        console.log("In range of a camera on the same street");
-        if (!activeWarning) {
-            console.log("Slow down");
-            showWarning();
+    // If we have a confirmed street, require multiple different readings to change it
+    if (currentConfirmedStreet) {
+        if (newStreet === currentConfirmedStreet) {
+            temporaryStreetCount = 0;
+            sameStreetCount++;
+            return currentConfirmedStreet;
+        } else {
+            temporaryStreetCount++;
+            // Only change street if we see the new street multiple times
+            if (temporaryStreetCount > streetConfidenceThreshold) {
+                const recentStreets = streetHistory.slice(-streetConfidenceThreshold);
+                const allSame = recentStreets.every(s => s === newStreet);
+                if (allSame) {
+                    console.log(`Street changed from ${currentConfirmedStreet} to ${newStreet} after ${streetConfidenceThreshold} confirmations`);
+                    currentConfirmedStreet = newStreet;
+                    sameStreetCount = 1;
+                    temporaryStreetCount = 0;
+                    return newStreet;
+                }
+            }
+            return currentConfirmedStreet;
         }
     } else {
-        console.log("Not in range or not on same street");
-        if (activeWarning) {
-            console.log("Safe");
-            hideWarning();
+        // No confirmed street yet, establish one
+        const mostCommon = getMostCommonStreet(streetHistory);
+        if (mostCommon && streetHistory.length >= 3) {
+            currentConfirmedStreet = mostCommon;
+            sameStreetCount = 1;
+            return mostCommon;
+        }
+        return newStreet;
+    }
+}
+
+// Add helper function to get most common street
+function getMostCommonStreet(streets) {
+    const counts = {};
+    let maxCount = 0;
+    let mostCommon = null;
+
+    streets.forEach(street => {
+        counts[street] = (counts[street] || 0) + 1;
+        if (counts[street] > maxCount) {
+            maxCount = counts[street];
+            mostCommon = street;
+        }
+    });
+
+    return maxCount >= 2 ? mostCommon : null;
+}
+
+// Update the compareStreetNames function
+function compareStreetNames(locationA, locationB) {
+    const normalizedA = normalizeStreetName(locationA);
+    const normalizedB = normalizeStreetName(locationB);
+    
+    console.log(`Comparing normalized streets: "${normalizedA}" with "${normalizedB}"`);
+    
+    // Exact match
+    if (normalizedA === normalizedB) {
+        return true;
+    }
+    
+    // Handle Lake Shore Boulevard special case
+    if (normalizedA.includes('lake shore') || normalizedB.includes('lake shore')) {
+        const baseA = normalizedA.replace(/(east|west)$/, '').trim();
+        const baseB = normalizedB.replace(/(east|west)$/, '').trim();
+        
+        if (baseA === baseB) {
+            const dirA = normalizedA.match(/(east|west)$/)?.[1] || '';
+            const dirB = normalizedB.match(/(east|west)$/)?.[1] || '';
+            return !dirA || !dirB || dirA === dirB;
         }
     }
+    
+    return false;
 }
 
-function initializeSound() {
-    const warningSound = document.getElementById('warningSound');
-    const enableSoundBtn = document.getElementById('enableSound');
-    
-    enableSoundBtn.addEventListener('click', function() {
-        soundEnabled = true;
-        warningSound.muted = false;
-        // Play and immediately pause to initialize audio
-        warningSound.play().then(() => {
-            warningSound.pause();
-            warningSound.currentTime = 0;
-        }).catch(error => {
-            console.log("Error initializing audio:", error);
-        });
-        enableSoundBtn.style.display = 'none';
-    });
-}
-
-function showWarning() {
-    activeWarning = true;
-    document.body.classList.add('warning-active');
-    document.getElementById('warning-banner').style.display = 'block';
-    
-    // Play warning sound if enabled
-    if (soundEnabled) {
-        const warningSound = document.getElementById('warningSound');
-        warningSound.muted = false;
-        warningSound.play().catch(error => {
-            console.log("Error playing sound:", error);
-        });
+// Update checkProximity function
+async function checkProximity() {
+    if (!userLat || !userLon) {
+        console.log("No location data available");
+        return;
     }
+
+    console.log("\n--- Checking proximity ---");
+    let nearbyCameras = [];
+
+    try {
+        const userResponse = await fetch(`/get_street_name?lat=${userLat}&lng=${userLon}`);
+        const userData = await userResponse.json();
+        const originalStreet = userData.street;
+        let userStreet = normalizeStreetName(originalStreet);
+        
+        if (!isValidStreetName(originalStreet)) {
+            console.log(`Invalid street name detected: ${originalStreet}, using confirmed street`);
+            if (currentConfirmedStreet) {
+                userStreet = currentConfirmedStreet;
+            } else {
+                console.log('No confirmed street available');
+                return;
+            }
+        }
+
+        userStreet = processStreetName(userStreet);
+        console.log(`Current location (normalized): ${userStreet} (original: ${originalStreet}) [Confidence: ${sameStreetCount}] [Confirmed: ${currentConfirmedStreet}]`);
+
+        // Find active cameras within range
+        for (const camera of aseLocations) {
+            if (camera.status === "Active") {
+                const distance = calculateDistance(userLat, userLon, camera.latitude, camera.longitude);
+                if (distance <= 200) {
+                    // Extract street name from camera location
+                    const cameraLocation = camera.location;
+                    const cameraStreetMatch = cameraLocation.match(/^([^(]+?)(?:\s+(?:Near|Between|At|North of|South of|East of|West of))?(?:\s+(?:and|&))?\s*(?:\(.*\))?$/i);
+                    const cameraStreet = cameraStreetMatch ? cameraStreetMatch[1].trim() : cameraLocation;
+
+                    nearbyCameras.push({ 
+                        camera, 
+                        distance,
+                        originalStreet: cameraStreet
+                    });
+                    console.log(`Camera in range: ${camera.location} (${Math.round(distance)}m)`);
+                }
+            }
+        }
+
+        // Check if any nearby cameras are on the same street
+        if (nearbyCameras.length > 0) {
+            let closestMatch = null;
+            let closestDistance = Infinity;
+
+            // Check all nearby cameras and find the closest match
+            for (const { camera, distance, originalStreet } of nearbyCameras) {
+                console.log(`Checking camera: "${originalStreet}" at ${Math.round(distance)}m`);
+                
+                if (compareStreetNames(originalStreet, userData.street)) {
+                    if (distance < closestDistance) {
+                        closestMatch = { camera, distance, originalStreet };
+                        closestDistance = distance;
+                    }
+                }
+            }
+
+            // Show warning for closest matching camera
+            if (closestMatch) {
+                console.log(`MATCH! On same street as camera: ${closestMatch.originalStreet}, distance: ${Math.round(closestMatch.distance)}m`);
+                showWarning({
+                    distance: Math.round(closestMatch.distance),
+                    street: userData.street,
+                    location: closestMatch.camera.location
+                });
+                return;
+            }
+        }
+
+        if (activeWarning) {
+            hideWarning();
+        }
+
+    } catch (error) {
+        console.error("Error in proximity check:", error);
+    }
+}
+
+// Update showWarning to include confidence info
+function showWarning(warningInfo) {
+    const warningBanner = document.getElementById('warning-banner');
+    warningBanner.innerHTML = `
+        ⚠️ WARNING: Active Speed Camera Ahead! ⚠️
+        <div class="distance-text">${warningInfo.distance}m ahead</div>
+        <div class="location-text">
+            On ${warningInfo.street}<br>
+        </div>
+    `;
+    warningBanner.style.display = 'block';
     
-    console.log("Slow down - Warning activated");
-    
-    // Vibrate if supported
-    if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
+    if (!activeWarning) {
+        activeWarning = true;
+        document.body.classList.add('warning-active');
+        
+        if (soundEnabled) {
+            playWarningSound();
+        }
+        
+        if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200]);
+        }
+    }
+    console.log(`Warning activated - Street confidence: ${sameStreetCount}`);
+}
+
+// Add new function to handle sound
+function playWarningSound() {
+    const warningSound = document.getElementById('warningSound');
+    if (warningSound) {
+        warningSound.currentTime = 0; // Reset to start
+        warningSound.loop = true;
+        
+        const playPromise = warningSound.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Error playing sound:", error);
+            });
+        }
     }
 }
 
@@ -331,21 +586,12 @@ function addAseMarkers() {
     aseLocations.forEach(location => {
         if (location.latitude && location.longitude) {
             var color = location.status === "Active" ? 'red' : 'yellow';
-            var message = `
-                <b>ID:</b> ${location.id}<br>
-                <b>Location Code:</b> ${location.location_code}<br>
-                <b>Ward:</b> ${location.ward}<br>
-                <b>Location:</b> ${location.location}<br>
-                <b>FID:</b> ${location.fid}<br>
-                <b>Status:</b> ${location.status}
-            `;
-
-            // Add circle for range
             var circle = L.circle([location.latitude, location.longitude], {
                 color: color,
                 fillColor: color === 'red' ? '#f03' : '#ff0',
                 fillOpacity: 0.2,
-                radius: 200
+                radius: 200,
+                interactive: !testMode  // Disable interaction in test mode
             }).addTo(map);
 
             // Add camera marker
@@ -363,12 +609,23 @@ function addAseMarkers() {
             });
 
             var marker = L.marker([location.latitude, location.longitude], {
-                icon: cameraIcon
+                icon: cameraIcon,
+                interactive: !testMode  // Disable interaction in test mode
             }).addTo(map);
 
-            // Add popup to both circle and marker
-            circle.bindPopup(message);
-            marker.bindPopup(message);
+            // Only add popups if not in test mode
+            if (!testMode) {
+                var message = `
+                    <b>ID:</b> ${location.id}<br>
+                    <b>Location Code:</b> ${location.location_code}<br>
+                    <b>Ward:</b> ${location.ward}<br>
+                    <b>Location:</b> ${location.location}<br>
+                    <b>FID:</b> ${location.fid}<br>
+                    <b>Status:</b> ${location.status}
+                `;
+                circle.bindPopup(message);
+                marker.bindPopup(message);
+            }
             
             aseMarkers.push(circle);
             aseMarkers.push(marker);
@@ -382,7 +639,7 @@ setInterval(() => {
     checkProximity().catch(error => {
         console.error("Error in proximity check:", error);
     });
-}, 1000);
+}, 1000); // Check every second
 
 // Fetch ASE locations once at the start
 fetch('/check_location', {
@@ -405,6 +662,11 @@ function toggleTestMode() {
     document.getElementById('testModeBtn').classList.toggle('btn-warning');
     document.getElementById('testModeBtn').classList.toggle('btn-secondary');
     document.getElementById('testModeStatus').textContent = testMode ? 'ON' : 'OFF';
+    
+    // Remove existing markers and re-add them
+    aseMarkers.forEach(marker => marker.remove());
+    aseMarkers = [];
+    addAseMarkers();
 }
 
 // Add this new function
@@ -425,21 +687,51 @@ function simulatePosition(e) {
     });
 }
 
-// Add this new function to show the test mode button
+// Update showTestModeButton function
 function showTestModeButton() {
-    document.getElementById('testModeBtn').style.display = 'block';
+    const testModeBtn = document.getElementById('testModeBtn');
+    if (testModeBtn) {
+        testModeBtn.style.display = 'block';
+        testModeBtn.addEventListener('click', toggleTestMode);
+    }
 }
 
-// Update the existing automatic location start
+// Update window.onload function
 window.onload = function() {
-    getLocation();
-    initializeSound();
+    console.log("Page loaded, initializing...");
     
-    // Add map click handler
-    map.on('click', simulatePosition);
+    // Always show test mode button in development
+    showTestModeButton();
     
-    // Show the test mode button (for example, only in development mode)
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        showTestModeButton();
+    // Initialize sound button
+    const enableSoundBtn = document.getElementById('enableSound');
+    const warningSound = document.getElementById('warningSound');
+    
+    if (enableSoundBtn && warningSound) {
+        enableSoundBtn.addEventListener('click', function() {
+            soundEnabled = true;
+            // Test sound setup
+            warningSound.loop = false;
+            warningSound.currentTime = 0;
+            warningSound.play()
+                .then(() => {
+                    setTimeout(() => {
+                        warningSound.pause();
+                        warningSound.currentTime = 0;
+                    }, 500);
+                })
+                .catch(error => {
+                    console.log("Error playing test sound:", error);
+                });
+            enableSoundBtn.style.display = 'none';
+        });
     }
+    
+    // Start location tracking with a slight delay to ensure page is ready
+    setTimeout(() => {
+        console.log("Starting location tracking...");
+        getLocation();
+    }, 1000);
+    
+    map.on('click', simulatePosition);
 };
