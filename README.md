@@ -42,7 +42,7 @@ The ASE location data is obtained from the City of Toronto's Open Data portal. T
 3. The map will display ASE locations in Toronto.
 4. If you are near an active speed camera, the site will flash red.
 
-5. ## How It Works
+## How It Works
 
 ### Street Name Detection System
 
