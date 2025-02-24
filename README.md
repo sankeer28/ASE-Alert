@@ -7,7 +7,7 @@ This project is a web application that provides notifications for Automated Spee
 - [ ] Handle edge cases where cameras are not detected
 - [ ] Optimize performance for faster camera data processing
 
-
+## Test Mode: Enable to spoof location by clicking anywhere on map
 ## How It Works
 
 The application fetches ASE location data from the City of Toronto's Open Data portal and displays the locations on a map. It uses an [api](https://github.com/sankeer28/toronto-street-api) I created to return streetname given coordinates. If user is in range o the camera and on the same street, user is alerted. If a vehicle is detected by the ASE system travelling in excess of the posted speed limit, the registered owner of the vehicle will receive a violation notice regardless of who was driving. The total payable amount is determined by Ontario Regulation 355/22 under the Highway Traffic Act and includes a Set Fine, victim fund component, and a provincial licence plate access fee. No demerit points will be issued by the Ministry of Transportation and no one’s driving record will be impacted.
