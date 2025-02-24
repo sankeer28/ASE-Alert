@@ -19,7 +19,7 @@ As of December 2022, Toronto's Automated Speed Enforcement (ASE) program had col
 - Flask (Python web framework)
 - Leaflet.js (Interactive maps)
 - Bootstrap (UI components)
-- Custom Toronto Street API (Street name detection)
+- [toronto-street-api (Street name detection)](https://github.com/sankeer28/toronto-street-api)
 - City of Toronto Open Data API (Camera locations)
 
 <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
