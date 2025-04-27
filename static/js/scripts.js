@@ -759,7 +759,7 @@ function simulatePosition(e) {
     });
 }
 
-// Update showTestModeButton function to check for desktop and localhost
+// Update showTestModeButton function to be more aggressive with hiding
 function showTestModeButton() {
     const testModeBtn = document.getElementById('testModeBtn');
     if (!testModeBtn) return;
@@ -774,7 +774,12 @@ function showTestModeButton() {
         testModeBtn.style.display = 'block';
         console.log("Test mode button enabled - on desktop localhost");
     } else {
-        testModeBtn.style.display = 'none';
+        // Make hiding more aggressive
+        testModeBtn.style.display = 'none !important';
+        testModeBtn.style.visibility = 'hidden';
+        testModeBtn.style.opacity = '0';
+        testModeBtn.style.pointerEvents = 'none';
+        testModeBtn.setAttribute('disabled', 'disabled');
         if (isMobile) console.log("Test mode button disabled - mobile device detected");
         if (!isLocal) console.log("Test mode button disabled - not on localhost");
     }
