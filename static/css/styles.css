@@ -49,3 +49,10 @@ body {
 .warning-active {
     animation: pageFlash 1s infinite;
 }
+.legend {
+    font-size: 14px;
+    color: #333;
+    margin-top: 2px; /* Reduced from default or previous value */
+    margin-bottom: 4px; /* Reduced from default or previous value */
+    text-align: center;
+}

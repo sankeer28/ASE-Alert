@@ -13,7 +13,7 @@ var streetChangeBuffer = 3; // Need this many consecutive different readings to 
 var sameStreetCount = 0;
 
 // Add these new variables at the top
-var streetConfidenceThreshold = 2; // Number of confirmations needed to change streets
+var streetConfidenceThreshold = 3; // Number of confirmations needed to change streets
 var streetHistory = [];
 var currentConfirmedStreet = null;
 var temporaryStreetCount = 0;
@@ -48,14 +48,17 @@ function getLocation() {
                 // Start watching position after getting initial location
                 navigator.geolocation.watchPosition(
                     showPosition,
-                    showError,
+                    (error) => {
+                        console.error("Geolocation watch error:", error);
+                        alert("Location error: " + error.message);
+                    },
                     options
                 );
             },
             // Error callback
             (error) => {
                 console.error("Error getting initial position:", error);
-                showDetailedError(error);
+                alert("Location error: " + error.message);
             },
             options
         );
@@ -247,6 +250,13 @@ function normalizeStreetName(streetName) {
     // Convert to lowercase and remove periods
     let normalized = streetName.toLowerCase().replace(/\./g, '');
     
+    // Extract just the street part if it contains a business or landmark descriptor
+    const streetParts = normalized.match(/([a-z]+ (?:road|rd|street|st|avenue|ave|drive|dr|crescent|cres|boulevard|blvd|court|ct|circle|cir|lane|ln|way|trail|path|gardens|gate|heights|hills|place|plaza|square|terrace|ter|valley|view|wood))/i);
+    if (streetParts && streetParts[1]) {
+        console.log(`Extracted street part from: "${normalized}" -> "${streetParts[1]}"`);
+        normalized = streetParts[1];
+    }
+    
     // Special handling for Lake Shore Boulevard
     if (normalized.includes('lake shore') || normalized.includes('lakeshore')) {
         normalized = normalized
@@ -296,15 +306,22 @@ function isValidStreetName(streetName) {
     // Must be at least 3 characters
     if (streetName.length < 3) return false;
     
+    // Must NOT contain these words which typically indicate a business, school or landmark
+    const businessIndicators = /(school|catholic|public|university|college|mall|plaza|centre|center|park|hospital|medical|clinic|library|restaurant|shop|store|supermarket|market|bank|office|building|arena|stadium|church|temple|mosque|synagogue)/i;
+    if (businessIndicators.test(streetName)) {
+        console.log(`Rejected business/place name: ${streetName}`);
+        return false;
+    }
+    
     // Common business/place names to reject
-    const invalidNames = /^(bmo|rbc|td|cibc|scotiabank|tim hortons|mcdonalds|walmart|costco|canadian tire|home depot|lowes|ikea|no name|no nearby|unknown|undefined)$/i;
+    const invalidNames = /^(bmo|rbc|td|cibc|scotiabank|tim hortons|mcdonalds|walmart|costco|canadian tire|home depot|lowes|ikea|no name|no nearby|unknown|undefined|st\.? [a-z]+ school)/i;
     if (invalidNames.test(streetName)) {
-        console.log(`Rejected business name: ${streetName}`);
+        console.log(`Rejected known business name: ${streetName}`);
         return false;
     }
     
     // Must contain at least one word that's typically in street names
-    const streetIndicators = /(road|rd|street|st|avenue|ave|drive|dr|crescent|cres|boulevard|blvd|court|ct|circle|cir|lane|ln|way|trail|path|park|gardens|gate|heights|hills|place|plaza|square|terrace|valley|view|wood)/i;
+    const streetIndicators = /(road|rd|street|st|avenue|ave|drive|dr|crescent|cres|boulevard|blvd|court|ct|circle|cir|lane|ln|way|trail|path|park|gardens|gate|heights|hills|place|plaza|square|terrace|ter|valley|view|wood)/i;
     if (!streetIndicators.test(streetName)) {
         console.log(`Missing street indicator in: ${streetName}`);
         return false;
@@ -406,81 +423,136 @@ async function checkProximity() {
         return;
     }
 
+    // Check if user is within bounds of any ASE camera (with margin)
+    if (!isUserWithinAseBounds(userLat, userLon)) {
+        if (activeWarning) hideWarning();
+        console.log("User is outside ASE camera bounds. Alerts disabled.");
+        return;
+    }
+
     console.log("\n--- Checking proximity ---");
     let nearbyCameras = [];
+    const DETECTION_RADIUS = 200; 
 
     try {
         const userResponse = await fetch(`/get_street_name?lat=${userLat}&lng=${userLon}`);
         const userData = await userResponse.json();
         const originalStreet = userData.street;
         let userStreet = normalizeStreetName(originalStreet);
+        let isUsingFallback = false;
         
-        if (!isValidStreetName(originalStreet)) {
-            console.log(`Invalid street name detected: ${originalStreet}, using confirmed street`);
+        // Always validate the street name after normalization
+        if (!isValidStreetName(userStreet)) {
+            console.log(`Invalid street detected: "${userStreet}" from "${originalStreet}"`);
+            
             if (currentConfirmedStreet) {
+                console.log(`Fallback: Using confirmed street "${currentConfirmedStreet}" instead`);
                 userStreet = currentConfirmedStreet;
+                isUsingFallback = true;
             } else {
-                console.log('No confirmed street available');
+                console.log('No confirmed street available, cannot proceed with detection');
                 return;
             }
         }
 
-        userStreet = processStreetName(userStreet);
-        console.log(`Current location (normalized): ${userStreet} (original: ${originalStreet}) [Confidence: ${sameStreetCount}] [Confirmed: ${currentConfirmedStreet}]`);
+        // Only process street name if we're not using a fallback
+        if (!isUsingFallback) {
+            userStreet = processStreetName(userStreet);
+        }
+        
+        console.log(`Current location (normalized): ${userStreet} (original: ${originalStreet}) [Confidence: ${sameStreetCount}] [Confirmed: ${currentConfirmedStreet}] [Fallback: ${isUsingFallback}]`);
 
         // Find active cameras within range
         for (const camera of aseLocations) {
             if (camera.status === "Active") {
                 const distance = calculateDistance(userLat, userLon, camera.latitude, camera.longitude);
-                if (distance <= 200) {
-                    // Extract street name from camera location
-                    const cameraLocation = camera.location;
-                    const cameraStreetMatch = cameraLocation.match(/^([^(]+?)(?:\s+(?:Near|Between|At|North of|South of|East of|West of))?(?:\s+(?:and|&))?\s*(?:\(.*\))?$/i);
-                    const cameraStreet = cameraStreetMatch ? cameraStreetMatch[1].trim() : cameraLocation;
-
+                if (distance <= DETECTION_RADIUS) {
+                    // Use cached street name if available, else fallback to parsing location
+                    let cameraStreet = camera.street_name || '';
+                    if (!cameraStreet) {
+                        const cameraLocation = camera.location;
+                        const cameraStreetMatch = cameraLocation.match(/^([^(]+?)(?:\s+(?:Near|Between|At|North of|South of|East of|West of))?(?:\s+(?:and|&))?\s*(?:\(.*\))?$/i);
+                        cameraStreet = cameraStreetMatch ? cameraStreetMatch[1].trim() : cameraLocation;
+                    }
+                    cameraStreet = normalizeStreetName(cameraStreet);
                     nearbyCameras.push({ 
                         camera, 
                         distance,
-                        originalStreet: cameraStreet
+                        cameraStreet
                     });
-                    console.log(`Camera in range: ${camera.location} (${Math.round(distance)}m)`);
+                    console.log(`Camera in range: ${camera.location} (${Math.round(distance)}m) [Street: ${cameraStreet}]`);
                 }
             }
         }
 
-        // Check if any nearby cameras are on the same street
-        if (nearbyCameras.length > 0) {
-            let closestMatch = null;
-            let closestDistance = Infinity;
+        // Improved fuzzy street name comparison helper
+        function fuzzyCompare(a, b) {
+            if (!a || !b) return false;
+            a = a.trim().toLowerCase();
+            b = b.trim().toLowerCase();
+            if (a === b) return true;
+            // Remove common suffixes for comparison
+            const stripSuffix = s => s.replace(/\b(street|st|avenue|ave|road|rd|drive|dr|boulevard|blvd|court|ct|lane|ln|trail|crescent|cres|place|pl|terrace|ter|parkway|pkwy|circle|cir|way|highway|hwy)\b/g, '').trim();
+            const aStripped = stripSuffix(a);
+            const bStripped = stripSuffix(b);
+            if (aStripped === bStripped) return true;
+            // Only allow Levenshtein distance of 2 or less, no substring match
+            return levenshtein(aStripped, bStripped) <= 2;
+        }
 
-            // Check all nearby cameras and find the closest match
-            for (const { camera, distance, originalStreet } of nearbyCameras) {
-                console.log(`Checking camera: "${originalStreet}" at ${Math.round(distance)}m`);
-                
-                if (compareStreetNames(originalStreet, userData.street)) {
-                    if (distance < closestDistance) {
-                        closestMatch = { camera, distance, originalStreet };
-                        closestDistance = distance;
+        // Levenshtein distance implementation
+        function levenshtein(a, b) {
+            const matrix = [];
+            let i;
+            for (i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+            let j;
+            for (j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (i = 1; i <= b.length; i++) {
+                for (j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1, // substitution
+                            matrix[i][j - 1] + 1,     // insertion
+                            matrix[i - 1][j] + 1      // deletion
+                        );
                     }
                 }
             }
-
-            // Show warning for closest matching camera
-            if (closestMatch) {
-                console.log(`MATCH! On same street as camera: ${closestMatch.originalStreet}, distance: ${Math.round(closestMatch.distance)}m`);
-                showWarning({
-                    distance: Math.round(closestMatch.distance),
-                    street: userData.street,
-                    location: closestMatch.camera.location
-                });
-                return;
-            }
+            return matrix[b.length][a.length];
         }
 
+        // Check if any nearby cameras are on the same (or similar) street
+        let closestMatch = null;
+        let closestDistance = Infinity;
+        for (const { camera, distance, cameraStreet } of nearbyCameras) {
+            const isMatch = fuzzyCompare(cameraStreet, userStreet);
+            console.log(`Street comparison: "${cameraStreet}" vs "${userStreet}" = ${isMatch ? "MATCH" : "NO MATCH"}`);
+            if (isMatch) {
+                if (distance < closestDistance) {
+                    closestMatch = { camera, distance, cameraStreet };
+                    closestDistance = distance;
+                }
+            }
+        }
+        if (closestMatch) {
+            console.log(`Match found: ${closestMatch.cameraStreet} matches ${userStreet}, distance: ${Math.round(closestMatch.distance)}m`);
+            showWarning({
+                distance: Math.round(closestMatch.distance),
+                street: userStreet,
+                location: closestMatch.camera.location
+            });
+            return;
+        }
+        
         if (activeWarning) {
             hideWarning();
         }
-
     } catch (error) {
         console.error("Error in proximity check:", error);
     }
@@ -490,7 +562,7 @@ async function checkProximity() {
 function showWarning(warningInfo) {
     const warningBanner = document.getElementById('warning-banner');
     warningBanner.innerHTML = `
-        ⚠️ WARNING: Active Speed Camera Ahead! ⚠️
+        ⚠️ Active Speed Camera Ahead! ⚠️
         <div class="distance-text">${warningInfo.distance}m ahead</div>
         <div class="location-text">
             On ${warningInfo.street}<br>
@@ -639,7 +711,7 @@ setInterval(() => {
     checkProximity().catch(error => {
         console.error("Error in proximity check:", error);
     });
-}, 1000); // Check every second
+}, 50); // Check every 50ms 
 
 // Fetch ASE locations once at the start
 fetch('/check_location', {
@@ -735,3 +807,36 @@ window.onload = function() {
     
     map.on('click', simulatePosition);
 };
+
+// Helper: get map bounds from all ASE cameras
+function getAseBounds() {
+    if (!aseLocations || aseLocations.length === 0) return null;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const cam of aseLocations) {
+        if (typeof cam.latitude === 'number' && typeof cam.longitude === 'number') {
+            minLat = Math.min(minLat, cam.latitude);
+            maxLat = Math.max(maxLat, cam.latitude);
+            minLon = Math.min(minLon, cam.longitude);
+            maxLon = Math.max(maxLon, cam.longitude);
+        }
+    }
+    return {
+        minLat, maxLat, minLon, maxLon
+    };
+}
+
+// Helper: check if user is within bounds
+function isUserWithinAseBounds(lat, lon, marginMeters = 500) {
+    const bounds = getAseBounds();
+    if (!bounds) return false;
+    // Expand bounds by margin (in meters)
+    // Convert meters to degrees (approx): 1 deg lat ~ 111,000m, 1 deg lon ~ 85,000m in Toronto
+    const latMargin = marginMeters / 111000;
+    const lonMargin = marginMeters / 85000;
+    return (
+        lat >= bounds.minLat - latMargin &&
+        lat <= bounds.maxLat + latMargin &&
+        lon >= bounds.minLon - lonMargin &&
+        lon <= bounds.maxLon + lonMargin
+    );
+}

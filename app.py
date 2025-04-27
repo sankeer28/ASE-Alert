@@ -3,6 +3,7 @@ import requests
 import json
 import logging
 from math import radians, sin, cos, sqrt, atan2
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 app = Flask(__name__)
 
@@ -11,6 +12,20 @@ logging.basicConfig(level=logging.INFO)
 
 # Global variable to store ASE locations
 ase_locations = []
+
+# Helper to get street name with retry
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+def get_street_name(lat, lng):
+    try:
+        response = requests.get(
+            "https://toronto-street-api.vercel.app/api",
+            params={"lat": lat, "lng": lng}, timeout=5
+        )
+        data = response.json()
+        return data.get("street", "").lower()
+    except Exception as e:
+        logging.error(f"Error fetching street name for ({lat}, {lng}): {e}")
+        return ""
 
 # Fetch ASE location data
 def fetch_ase_locations():
@@ -33,15 +48,23 @@ def fetch_ase_locations():
                     for record in records:
                         geometry = json.loads(record["geometry"])
                         coordinates = geometry["coordinates"]
+                        lat, lng = coordinates[1], coordinates[0]
+                        # Try to cache street name, but don't block if it fails
+                        try:
+                            street_name = get_street_name(lat, lng)
+                        except Exception as e:
+                            logging.warning(f"Could not fetch street name for camera at ({lat}, {lng}): {e}")
+                            street_name = ""
                         ase_locations.append({
-                            "latitude": coordinates[1],
-                            "longitude": coordinates[0],
+                            "latitude": lat,
+                            "longitude": lng,
                             "id": record["_id"],
                             "location_code": record["Location_Code"],
                             "ward": record["ward"],
                             "location": record["location"],
                             "fid": record["FID"],
-                            "status": record["Status"]
+                            "status": record["Status"],
+                            "street_name": street_name
                         })
                     if len(records) < 100:
                         break
@@ -67,11 +90,15 @@ def index():
 
 @app.route('/check_location', methods=['POST'])
 def check_location():
+    global ase_locations
     user_location = request.json
     user_lat = user_location.get('latitude')
     user_lng = user_location.get('longitude')
     ALERT_DISTANCE = 300  # Alert when within 300 meters
     
+    # If ase_locations is empty, try to fetch again (fallback)
+    if not ase_locations:
+        fetch_ase_locations()
     try:
         # Get user's street name
         user_street_response = requests.get(
@@ -85,19 +112,10 @@ def check_location():
         for camera in ase_locations:
             camera_lat = camera['latitude']
             camera_lng = camera['longitude']
-            
-            # First check distance to avoid unnecessary API calls
             distance = calculate_distance(user_lat, user_lng, camera_lat, camera_lng)
-            
             if distance <= ALERT_DISTANCE:
-                # Only check street name if within range
-                camera_street_response = requests.get(
-                    f"https://toronto-street-api.vercel.app/api",
-                    params={"lat": camera_lat, "lng": camera_lng}
-                )
-                camera_street_data = camera_street_response.json()
-                camera_street = camera_street_data.get("street", "").lower()
-                
+                # Use cached street name
+                camera_street = camera.get('street_name', '').lower()
                 if user_street == camera_street:
                     nearby_alerts.append({
                         "location": camera['location'],
@@ -107,7 +125,6 @@ def check_location():
                         "longitude": camera_lng,
                         "status": camera['status']
                     })
-        
         return jsonify({
             "message": "Check completed",
             "ase_locations": ase_locations,  # Include full list for map markers
