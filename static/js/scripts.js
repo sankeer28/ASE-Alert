@@ -759,13 +759,27 @@ function simulatePosition(e) {
     });
 }
 
-// Update showTestModeButton function
+// Update showTestModeButton function to check for desktop and localhost
 function showTestModeButton() {
     const testModeBtn = document.getElementById('testModeBtn');
-    if (testModeBtn) {
+    if (!testModeBtn) return;
+    
+    // Only show if:
+    // 1. On localhost or 127.0.0.1 AND
+    // 2. Not on a mobile device
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isLocal && !isMobile) {
         testModeBtn.style.display = 'block';
-        testModeBtn.addEventListener('click', toggleTestMode);
+        console.log("Test mode button enabled - on desktop localhost");
+    } else {
+        testModeBtn.style.display = 'none';
+        if (isMobile) console.log("Test mode button disabled - mobile device detected");
+        if (!isLocal) console.log("Test mode button disabled - not on localhost");
     }
+    
+    testModeBtn.addEventListener('click', toggleTestMode);
 }
 
 // Update window.onload function
