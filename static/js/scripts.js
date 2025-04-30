@@ -432,7 +432,7 @@ async function checkProximity() {
 
     console.log("\n--- Checking proximity ---");
     let nearbyCameras = [];
-    const DETECTION_RADIUS = 200; 
+    const DETECTION_RADIUS = 300; // Changed from 200m to 300m to count for faster driving speeds
 
     try {
         const userResponse = await fetch(`/get_street_name?lat=${userLat}&lng=${userLon}`);
@@ -662,7 +662,7 @@ function addAseMarkers() {
                 color: color,
                 fillColor: color === 'red' ? '#f03' : '#ff0',
                 fillOpacity: 0.2,
-                radius: 200,
+                radius: 300, // Changed from 200m to 300m to match detection radius
                 interactive: !testMode  // Disable interaction in test mode
             }).addTo(map);
 

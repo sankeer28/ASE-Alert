@@ -28,7 +28,7 @@ def get_street_name(lat, lng):
         return ""
 
 # Fetch ASE location data
-def fetch_ase_locations():
+def fetch_ase_locations(): 
     global ase_locations
     base_url = "https://ckan0.cf.opendata.inter.prod-toronto.ca"
     url = base_url + "/api/3/action/package_show"
