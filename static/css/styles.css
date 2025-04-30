@@ -1,58 +1,274 @@
+/* Modern and responsive styles for ASE Alert */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --warning-color: #e74c3c;
+    --background-color: #ecf0f1;
+    --text-color: #2c3e50;
+    --light-color: #ffffff;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --radius: 12px;
+}
+
 body {
-    background-color: lightblue; /* Set initial background color to light blue */
-    font-family: 'Lato', sans-serif; /* Use Lato font */
+    background-color: var(--background-color);
+    font-family: 'Lato', sans-serif;
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    transition: background-color 0.3s ease;
 }
+
+.app-container {
+    max-width: 100%;
+    padding: 15px;
+    margin: 0 auto;
+}
+
+/* Header styles */
+.app-header {
+    padding: 10px 0;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.app-title {
+    font-size: 1.8rem;
+    margin: 0;
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+/* Map container styles */
+.map-container {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    margin-bottom: 15px;
+}
+
 #map {
-    height: 600px;
+    height: 65vh;
     width: 100%;
-    border-radius: 15px; /* Add rounded corners to the map */
-    overflow: hidden; /* Ensure the map content stays within the rounded corners */
+    z-index: 1;
 }
+
+/* Control buttons */
+.control-button {
+    border-radius: 50px;
+    padding: 10px 20px;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    transition: all 0.2s ease;
+    border: none;
+    margin: 5px;
+}
+
+.control-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+}
+
+.button-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+/* Map UI elements */
+.leaflet-control-refocus {
+    background-color: var(--light-color);
+    border-radius: var(--radius);
+    padding: 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.leaflet-control-refocus:hover {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
 .user-location {
-    background-color: blue;
+    background-color: var(--secondary-color);
+    border: 3px solid white;
     border-radius: 50%;
-    width: 10px;
-    height: 10px;
-    display: block;
-    position: absolute;
-    top: -5px;
-    left: -5px;
+    width: 15px;
+    height: 15px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
 }
+
 .user-direction {
     width: 0;
     height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 10px solid blue;
-    position: absolute;
-    top: -15px;
-    left: -5px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 12px solid var(--secondary-color);
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.3));
 }
-.leaflet-control-refocus {
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 10px;
-    cursor: pointer;
+
+/* Warning styles */
+@keyframes warningPulse {
+    0% { background-color: var(--background-color); }
+    50% { background-color: var(--warning-color); }
+    100% { background-color: var(--background-color); }
+}
+
+.warning-active {
+    animation: warningPulse 1s infinite;
+}
+
+#warning-banner {
+    background-color: var(--warning-color);
+    color: white;
+    border-radius: var(--radius);
+    padding: 15px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 10px;
+    z-index: 1000;
+}
+
+.distance-text {
+    font-size: 2.5rem;
+    font-weight: 700;
+    display: block;
+    margin: 10px 0;
+}
+
+.location-text {
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+/* Legend */
+.legend {
+    background-color: var(--light-color);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    color: var(--text-color);
+    text-align: center;
+    box-shadow: var(--shadow);
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.legend span {
     display: flex;
     align-items: center;
+    margin: 0 5px;
 }
-.leaflet-control-refocus i {
-    color: black;
+
+.color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
     margin-right: 5px;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
 }
-@keyframes pageFlash {
-    0% { background-color: lightblue; }
-    50% { background-color: red; }
-    100% { background-color: lightblue; }
+
+/* Fixed position elements */
+.fixed-bottom-left {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 900;
 }
-.warning-active {
-    animation: pageFlash 1s infinite;
+
+.fixed-bottom-right {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 900;
 }
-.legend {
-    font-size: 14px;
-    color: #333;
-    margin-top: 2px; /* Reduced from default or previous value */
-    margin-bottom: 4px; /* Reduced from default or previous value */
-    text-align: center;
+
+.github-link {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 900;
+    background-color: var(--light-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow);
+    transition: all 0.2s ease;
+}
+
+.github-link:hover {
+    transform: scale(1.1);
+}
+
+.github-link img {
+    width: 24px;
+    height: 24px;
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+    #map {
+        height: 60vh;
+    }
+    
+    .app-title {
+        font-size: 1.5rem;
+    }
+    
+    .fixed-bottom-left, .fixed-bottom-right {
+        position: static;
+        margin: 10px 0;
+    }
+    
+    .button-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-button {
+        width: 100%;
+        margin: 5px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    #map {
+        height: 50vh;
+    }
+    
+    .distance-text {
+        font-size: 2rem;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary-color: #ecf0f1;
+        --secondary-color: #3498db;
+        --background-color: #2c3e50;
+        --text-color: #ecf0f1;
+        --light-color: #34495e;
+    }
+    
+    .leaflet-tile-pane {
+        filter: brightness(0.8) contrast(1.2);
+    }
 }

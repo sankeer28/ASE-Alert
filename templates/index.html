@@ -2,190 +2,119 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>ASE Alert</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-    <style>
-        body {
-            background-color: lightblue; /* Set initial background color to light blue */
-            font-family: 'Lato', sans-serif; /* Use Lato font */
-        }
-        #map {
-            height: 450px; /* Reduced from 600px to make more square */
-            width: 100%;
-            border-radius: 15px; /* Add rounded corners to the map */
-            overflow: hidden; /* Ensure the map content stays within the rounded corners */
-            margin-bottom: 10px; /* Reduced margin */
-        }
-        .user-location {
-            background-color: blue;
-            border-radius: 50%;
-            width: 10px;
-            height: 10px;
-            display: block;
-            position: absolute;
-            top: -5px;
-            left: -5px;
-        }
-        .user-direction {
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 10px solid blue;
-            position: absolute;
-            top: -15px;
-            left: -5px;
-        }
-        .leaflet-control-refocus {
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            padding: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-        }
-        .leaflet-control-refocus i {
-            color: black;
-            margin-right: 5px;
-        }
-        @keyframes pageFlash {
-            0% { background-color: lightblue; }
-            50% { background-color: red; }
-            100% { background-color: lightblue; }
-        }
-        .warning-active {
-            animation: pageFlash 1s infinite;
-        }
-        .legend {
-            font-size: 14px;
-            color: #333;
-            margin-top: -5px; /* Reduced from -15px */
-            margin-bottom: 10px; /* Reduced from 15px */
-            text-align: center;
-        }
-        .legend span {
-            margin: 0 10px;
-        }
-        .color-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        .github-link {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-        }
-        .github-link img {
-            width: 24px;
-            height: 24px;
-            opacity: 0.7;
-            transition: opacity 0.3s;
-        }
-        .github-link img:hover {
-            opacity: 1;
-        }
-        #enableSound {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            z-index: 1000;
-        }
-        #testModeBtn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-            /* Removed the force display rule that was overriding JavaScript */
-        }
-        #warning-banner {
-            font-size: 1.2em;
-            padding: 12px;
-            margin: 5px 0; /* Reduced margins */
-            line-height: 1.3;
-            position: sticky; /* Make warning banner stick to top */
-            top: 0;
-            z-index: 1000;
-        }
-        .distance-text {
-            font-size: 2.5em; /* Made distance text even larger */
-            font-weight: bold;
-            display: block;
-            margin: 5px 0; /* Reduced margins */
-            color: #721c24;
-        }
-        .location-text {
-            display: block;
-            font-size: 0.9em;
-            margin-top: 5px;
-            color: #721c24;
-        }
-    </style>
 </head>
-<body class="container mt-3"> 
-    <a href="https://github.com/sankeer28/ASE-Alert" target="_blank" class="github-link" style="display:none;">
-        <img src="https://github.com/favicon.ico" alt="GitHub">
-    </a>
-    
-    <div id="map" class="mb-4"></div>
-    <div class="legend">
-        <span><span class="color-dot" style="background: red;"></span>Active</span>
-        <span><span class="color-dot" style="background: yellow;"></span>Coming Soon</span>
+<body>
+    <div class="app-container">
+        <!-- GitHub link -->
+        <a href="https://github.com/sankeer28/ASE-Alert" target="_blank" class="github-link" style="display:none;">
+            <img src="https://github.com/favicon.ico" alt="GitHub">
+        </a>
+        
+
+        <!-- App header -->
+        <header class="app-header">
+            <h1 class="app-title">ASE 📷 Alert</h1>
+        </header>
+
+        <!-- Warning banner -->
+        <div id="warning-banner" style="display: none;" class="warning-flash">
+            <i class="fas fa-exclamation-triangle fa-lg"></i> 
+            <span class="warning-title">Active Speed Camera Ahead!</span>
+            <div class="distance-text">
+                <span id="distance-value">0</span>m ahead
+            </div>
+            <div class="location-text" id="location-text"></div>
+        </div>
+
+        <!-- Map container -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <span><span class="color-dot" style="background: #e74c3c;"></span>Active Camera</span>
+            <span><span class="color-dot" style="background: #f1c40f;"></span>Coming Soon</span>
+        </div>
+
+        <!-- Control buttons -->
+        <div class="button-container">
+            <button id="enableSound" class="btn btn-primary control-button">
+                <i class="fas fa-volume-up mr-2"></i>Enable Sound Alerts
+            </button>
+            
+            <button id="testModeBtn" class="btn btn-secondary control-button">
+                <i class="fas fa-vial mr-2"></i>Test Mode: <span id="testModeStatus">OFF</span>
+            </button>
+        </div>
     </div>
-    <div id="warning-banner" style="display: none;" class="warning-flash alert alert-danger text-center">
-        ⚠️ Active Speed Camera Ahead! ⚠️
-    </div>
-    <button id="enableSound" class="btn btn-primary">Enable Sound Alerts</button>
-    <button id="testModeBtn" class="btn btn-secondary">
-        Test Mode: <span id="testModeStatus">OFF</span>
-    </button>
+
+    <!-- Audio for alerts -->
     <audio id="warningSound" preload="auto">
         <source src="{{ url_for('static', filename='sound.mp3') }}" type="audio/mpeg">
     </audio>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script src="https://kit.fontawesome.com/a076d05399.js"></script> 
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
     <script>
-        const enableSoundBtn = document.getElementById('enableSound');
-        const warningSound = document.getElementById('warningSound');
+        document.addEventListener('DOMContentLoaded', function() {
+            const enableSoundBtn = document.getElementById('enableSound');
+            const warningSound = document.getElementById('warningSound');
 
-        if (enableSoundBtn && warningSound) {
-            enableSoundBtn.addEventListener('click', function() {
-                soundEnabled = !soundEnabled;
-                if (soundEnabled) {
-                    warningSound.loop = false;
-                    warningSound.currentTime = 0;
-                    warningSound.play()
-                        .then(() => {
-                            setTimeout(() => {
-                                warningSound.pause();
-                                warningSound.currentTime = 0;
-                            }, 500);
-                        })
-                        .catch(error => {
-                            console.log("Error playing test sound:", error);
-                        });
-                    enableSoundBtn.textContent = "Disable Sound Alerts";
-                    enableSoundBtn.classList.remove('btn-primary');
-                    enableSoundBtn.classList.add('btn-danger');
-                } else {
-                    enableSoundBtn.textContent = "Enable Sound Alerts";
-                    enableSoundBtn.classList.remove('btn-danger');
-                    enableSoundBtn.classList.add('btn-primary');
-                }
-            });
-        }
+            if (enableSoundBtn && warningSound) {
+                enableSoundBtn.addEventListener('click', function() {
+                    soundEnabled = !soundEnabled;
+                    if (soundEnabled) {
+                        warningSound.loop = false;
+                        warningSound.currentTime = 0;
+                        warningSound.play()
+                            .then(() => {
+                                setTimeout(() => {
+                                    warningSound.pause();
+                                    warningSound.currentTime = 0;
+                                }, 500);
+                            })
+                            .catch(error => {
+                                console.log("Error playing test sound:", error);
+                            });
+                        enableSoundBtn.innerHTML = '<i class="fas fa-volume-mute mr-2"></i>Disable Sound Alerts';
+                        enableSoundBtn.classList.remove('btn-primary');
+                        enableSoundBtn.classList.add('btn-danger');
+                    } else {
+                        enableSoundBtn.innerHTML = '<i class="fas fa-volume-up mr-2"></i>Enable Sound Alerts';
+                        enableSoundBtn.classList.remove('btn-danger');
+                        enableSoundBtn.classList.add('btn-primary');
+                    }
+                });
+            }
+
+            // Handle iOS specific issues
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                document.body.addEventListener('touchstart', function() {
+                    // Pre-load the audio for iOS
+                    warningSound.load();
+                    if (warningSound.paused) {
+                        warningSound.play().then(() => {
+                            warningSound.pause();
+                            warningSound.currentTime = 0;
+                        }).catch(err => console.log('iOS audio pre-load failed:', err));
+                    }
+                }, {once: true});
+            }
+        });
     </script>
 </body>
 </html>

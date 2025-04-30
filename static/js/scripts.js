@@ -561,13 +561,14 @@ async function checkProximity() {
 // Update showWarning to include confidence info
 function showWarning(warningInfo) {
     const warningBanner = document.getElementById('warning-banner');
-    warningBanner.innerHTML = `
-        ⚠️ Active Speed Camera Ahead! ⚠️
-        <div class="distance-text">${warningInfo.distance}m ahead</div>
-        <div class="location-text">
-            On ${warningInfo.street}<br>
-        </div>
-    `;
+    const distanceValue = document.getElementById('distance-value');
+    const locationText = document.getElementById('location-text');
+    
+    // Update the values
+    if (distanceValue) distanceValue.textContent = warningInfo.distance;
+    if (locationText) locationText.textContent = `On ${warningInfo.street}`;
+    
+    // Show the banner
     warningBanner.style.display = 'block';
     
     if (!activeWarning) {
@@ -578,6 +579,7 @@ function showWarning(warningInfo) {
             playWarningSound();
         }
         
+        // Apply vibration on supported devices
         if (navigator.vibrate) {
             navigator.vibrate([200, 100, 200]);
         }
@@ -622,11 +624,11 @@ function refocusMap() {
     }
 }
 
-// Add custom control button for refocusing
+// Add custom control button for refocusing with improved styling
 L.Control.Refocus = L.Control.extend({
     onAdd: function(map) {
         var div = L.DomUtil.create('div', 'leaflet-control-refocus');
-        div.innerHTML = '<i class="fas fa-crosshairs"></i> Refocus';
+        div.innerHTML = '<i class="fas fa-location-arrow"></i> Recenter';
         div.onclick = function() {
             refocusMap();
         };
@@ -657,27 +659,28 @@ function addAseMarkers() {
     console.log("Adding ASE markers to the map...");
     aseLocations.forEach(location => {
         if (location.latitude && location.longitude) {
-            var color = location.status === "Active" ? 'red' : 'yellow';
+            var color = location.status === "Active" ? '#e74c3c' : '#f1c40f';
             var circle = L.circle([location.latitude, location.longitude], {
                 color: color,
-                fillColor: color === 'red' ? '#f03' : '#ff0',
-                fillOpacity: 0.2,
+                fillColor: color,
+                fillOpacity: 0.3,
+                weight: 2,
                 radius: 300, // Changed from 200m to 300m to match detection radius
                 interactive: !testMode  // Disable interaction in test mode
             }).addTo(map);
 
-            // Add camera marker
+            // Add camera marker with improved styling
             var cameraIcon = L.divIcon({
                 className: 'camera-icon',
                 html: `<div style="
-                    width: 10px;
-                    height: 10px;
+                    width: 12px;
+                    height: 12px;
                     background-color: ${color};
                     border: 2px solid white;
                     border-radius: 50%;
-                    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+                    box-shadow: 0 0 8px rgba(0,0,0,0.5);
                 "></div>`,
-                iconSize: [10, 10]
+                iconSize: [12, 12]
             });
 
             var marker = L.marker([location.latitude, location.longitude], {
@@ -688,12 +691,12 @@ function addAseMarkers() {
             // Only add popups if not in test mode
             if (!testMode) {
                 var message = `
-                    <b>ID:</b> ${location.id}<br>
-                    <b>Location Code:</b> ${location.location_code}<br>
-                    <b>Ward:</b> ${location.ward}<br>
-                    <b>Location:</b> ${location.location}<br>
-                    <b>FID:</b> ${location.fid}<br>
-                    <b>Status:</b> ${location.status}
+                    <div class="camera-popup">
+                        <h5>Speed Camera</h5>
+                        <p><b>Location:</b> ${location.location}</p>
+                        <p><b>Status:</b> ${location.status}</p>
+                        <p><b>Ward:</b> ${location.ward}</p>
+                    </div>
                 `;
                 circle.bindPopup(message);
                 marker.bindPopup(message);
@@ -739,6 +742,28 @@ function toggleTestMode() {
     aseMarkers.forEach(marker => marker.remove());
     aseMarkers = [];
     addAseMarkers();
+    
+    // Show message when test mode is toggled
+    const message = testMode ? 
+        'Test Mode activated - click on map to simulate location' : 
+        'Test Mode deactivated';
+    
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Show and then fade out
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 300);
+        }, 2000);
+    }, 100);
 }
 
 // Add this new function
@@ -759,31 +784,37 @@ function simulatePosition(e) {
     });
 }
 
-// Update showTestModeButton function to be more aggressive with hiding
+// Fix the showTestModeButton function to properly show the button in development
 function showTestModeButton() {
     const testModeBtn = document.getElementById('testModeBtn');
     if (!testModeBtn) return;
     
-    // Only show if:
-    // 1. On localhost or 127.0.0.1 AND
-    // 2. Not on a mobile device
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // Always enable test mode when in development
+    // Check if we're running on localhost or 127.0.0.1
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.hostname === '';
+                    
+    // Only hide on mobile devices when in production
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    if (isLocal && !isMobile) {
+    console.log(`Environment check: isLocal=${isLocal}, isMobile=${isMobile}, hostname=${window.location.hostname}`);
+    
+    // Always show in development regardless of device
+    if (isLocal) {
         testModeBtn.style.display = 'block';
-        console.log("Test mode button enabled - on desktop localhost");
+        console.log("Test mode button enabled - in development environment");
+    } else if (!isMobile) {
+        // Show in production only on desktop
+        testModeBtn.style.display = 'block';
+        console.log("Test mode button enabled - on desktop in production");
     } else {
-        // Make hiding more aggressive
-        testModeBtn.style.display = 'none !important';
-        testModeBtn.style.visibility = 'hidden';
-        testModeBtn.style.opacity = '0';
-        testModeBtn.style.pointerEvents = 'none';
-        testModeBtn.setAttribute('disabled', 'disabled');
-        if (isMobile) console.log("Test mode button disabled - mobile device detected");
-        if (!isLocal) console.log("Test mode button disabled - not on localhost");
+        // Hide in production on mobile
+        testModeBtn.style.display = 'none';
+        console.log("Test mode button disabled - on mobile in production");
     }
     
+    // Add click event listener
     testModeBtn.addEventListener('click', toggleTestMode);
 }
 
