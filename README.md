@@ -23,14 +23,12 @@ As of December 2022, Toronto's Automated Speed Enforcement (ASE) program had col
 - City of Toronto Open Data API (Camera locations)
 
 <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/0acf7aa8-c406-498d-9336-3f574a3ad80c" width="300" style="max-width: 45%;">
-  <img src="https://github.com/user-attachments/assets/40998321-1d45-491b-a8e7-b6b71db7fa16" width="300" style="max-width: 45%;">
+  <img src="https://github.com/user-attachments/assets/14447f4e-3585-4368-8344-0a124313b1fc" width="300" style="max-width: 45%;">
+  <img src="https://github.com/user-attachments/assets/074a4769-0dee-4c9b-b7ff-a5b01c4e2f27" width="300" style="max-width: 45%;">
 </div>
 
 
-#### Yellow 🟨 - Cameras coming soon
-#### Red 🟥 - Active Cameras
-#### When in range and on same street (200m radius from your location and 200m radius from camera radius overlaps) page will flash red 🟥 with optional audio alert 🔊.
+#### When in range and on same street (300m radius from your location and 300m radius from camera radius overlaps) page will flash red 🟥 with optional audio alert 🔊.
 ## Data Source
 
 The ASE location data is obtained from the City of Toronto's Open Data portal. The dataset can be found at [Automated Speed Enforcement Locations](https://open.toronto.ca/dataset/automated-speed-enforcement-locations/).
@@ -41,6 +39,7 @@ The ASE location data is obtained from the City of Toronto's Open Data portal. T
 2. Allow the application to access your location.
 3. The map will display ASE locations in Toronto.
 4. If you are near an active speed camera, the site will flash red.
+5. If the sound alert is enabled, it will continue to notify you while running in the background, allowing you to use your preferred navigation app uninterrupted.
 
 ## How It Works
 
